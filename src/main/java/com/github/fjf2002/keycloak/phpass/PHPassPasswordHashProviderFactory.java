@@ -8,10 +8,11 @@ import org.keycloak.models.KeycloakSessionFactory;
 
 public class PHPassPasswordHashProviderFactory implements PasswordHashProviderFactory {
 	public static final String ID = "phpass";
+	public static final int DEFAULT_ITERATIONS_LOG_BASE_2 = 16;
 
 	@Override
 	public PasswordHashProvider create(KeycloakSession session) {
-		return new PHPassPasswordHashProvider();
+		return new PHPassPasswordHashProvider(ID, DEFAULT_ITERATIONS_LOG_BASE_2);
 	}
 
 	@Override

@@ -5,28 +5,51 @@ import org.keycloak.models.PasswordPolicy;
 import org.keycloak.models.credential.PasswordCredentialModel;
 
 public class PHPassPasswordHashProvider implements PasswordHashProvider {
+    private final int defaultIterationsLogBase2;
+    private final String providerId;
 
-	@Override
-	public boolean policyCheck(final PasswordPolicy policy, final PasswordCredentialModel credential) {
-		throw new UnsupportedOperationException("PHPass password policies are not supported.");
-	}
+    public PHPassPasswordHashProvider(final String providerId, final int defaultIterationsLogBase2) {
+        this.providerId = providerId;
+        this.defaultIterationsLogBase2 = defaultIterationsLogBase2;
+    }
 
-	@Override
-	public String encode(String rawPassword, int iterations) {
-		throw new UnsupportedOperationException("PHPass password encoding is not supported.");
-	}
-	
-	@Override
-	public PasswordCredentialModel encodedCredential(final String rawPassword, final int iterations) {
-		throw new UnsupportedOperationException("PHPass password encoding is not supported.");
-	}
+    @Override
+    public boolean policyCheck(final PasswordPolicy policy, final PasswordCredentialModel credential) {
+        final int defaultIterations = (1 << defaultIterationsLogBase2) + 1;
 
-	@Override
-	public void close() {
-	}
+        final int policyHashIterations = policy.getHashIterations() == -1 ? defaultIterations : policy.getHashIterations();
 
-	@Override
-	public boolean verify(final String rawPassword, final PasswordCredentialModel credential) {
-		return PHPassTool.checkPassword(rawPassword, credential.getPasswordSecretData().getValue());
-	}
+        return credential.getPasswordCredentialData().getHashIterations() == policyHashIterations
+                && providerId.equals(credential.getPasswordCredentialData().getAlgorithm());
+    }
+
+    @Override
+    public String encode(String rawPassword, int iterationsLogBase2) {
+        final int countLogBase2 = iterationsLogBase2 == -1 ? defaultIterationsLogBase2 : iterationsLogBase2;
+
+        final String settings = PHPassTool.generateSettings(countLogBase2);
+
+        return PHPassTool.hash(rawPassword, settings);
+    }
+
+    @Override
+    public PasswordCredentialModel encodedCredential(final String rawPassword, final int iterationsLogBase2) {
+        final int countLogBase2 = iterationsLogBase2 == -1 ? defaultIterationsLogBase2 : iterationsLogBase2;
+
+        final String encodedPassword = encode(rawPassword, countLogBase2);
+
+        // The salt is stored as part of the hashed password and there isn't much need for Keycloak to know about it
+        final byte[] salt = new byte[0];
+
+        return PasswordCredentialModel.createFromValues(providerId, salt, countLogBase2, encodedPassword);
+    }
+
+    @Override
+    public void close() {
+    }
+
+    @Override
+    public boolean verify(final String rawPassword, final PasswordCredentialModel credential) {
+        return PHPassTool.checkPassword(rawPassword, credential.getPasswordSecretData().getValue());
+    }
 }
